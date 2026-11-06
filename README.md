@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mandate
 
-## Getting Started
+**An AI shopping agent that only spends within the rules you give it.**
 
-First, run the development server:
+You write a mandate in plain English ("up to $80 a month on school supplies, only from these stores, ask me above $30"). Mandate turns it into rules, shops for you, pays through PayPal, explains every purchase, and can refund its own mistakes.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Built for the PayPal AI Hackathon (Nov 2026).
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Status
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Work in progress. Day 1: PayPal money flow (save wallet with Vault, charge it with Orders v2, refund) and the policy engine.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## How it uses PayPal
 
-## Learn More
+| PayPal capability | Used for |
+| --- | --- |
+| Vault v3 (setup tokens, payment tokens) | Save the user's PayPal wallet once so the agent can pay without a redirect |
+| Orders v2 with `vault_id` | Agent pays for an approved cart |
+| Payments v2 refunds | Agent returns items and refunds the capture |
 
-To learn more about Next.js, take a look at the following resources:
+## How it uses AI
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Claude (Anthropic API) runs the agent: it parses the mandate into structured rules, searches products, builds carts and writes the explanation for each purchase. The spending rules are enforced in code (`src/lib/mandate.ts`), not by the model.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Run locally
 
-## Deploy on Vercel
+1. Create a sandbox app at [developer.paypal.com](https://developer.paypal.com/dashboard/applications/sandbox) and turn on **Vault** (save payment methods) in its features.
+2. `cp .env.example .env.local` and fill in the values.
+3. `npm install && npm run dev`
+4. Open http://localhost:3000/dev, save a wallet with a sandbox **personal** account, charge a test order, then refund it.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deploy
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`render.yaml` deploys to Render. Set the secret env vars in the Render dashboard and `APP_URL` to the service URL.
+
+## License
+
+MIT
