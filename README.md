@@ -14,7 +14,7 @@ Work in progress. Done: PayPal money flow (save wallet with Vault, charge it wit
 
 | PayPal capability | Used for |
 | --- | --- |
-| Vault v3 (setup tokens, payment tokens) | Save the user's PayPal wallet once so the agent can pay without a redirect |
+| Vault v3 (setup tokens, payment tokens) | Save the user's PayPal wallet (or a sandbox test card) once so the agent can pay without a redirect |
 | Orders v2 with `vault_id` | Agent pays for an approved cart |
 | Payments v2 refunds | Agent returns items and refunds the capture |
 
@@ -27,7 +27,7 @@ Claude (Anthropic API) runs the agent: it parses the mandate into structured rul
 1. Create a sandbox app at [developer.paypal.com](https://developer.paypal.com/dashboard/applications/sandbox) and turn on **Vault** (save payment methods) in its features.
 2. `cp .env.example .env.local` and fill in the values.
 3. `npm install && npm run dev`
-4. Open http://localhost:3000, click **Connect PayPal** and log in with a sandbox **personal** account, then chat with the agent. `/dev` has a bare test page for the PayPal flow without AI.
+4. Open http://localhost:3000. Click **Connect PayPal** and log in with a sandbox **personal** account, or click **Use test card** to save PayPal's sandbox test Visa to the Vault with no login. Then chat with the agent. `/dev` has a bare test page for the PayPal flow without AI.
 
 ## Deploy
 

@@ -18,7 +18,7 @@ type Feed =
   | { kind: "denied"; reasons: string[]; total: number; at: string }
   | { kind: "mandate"; at: string };
 type State = {
-  walletSaved: boolean; paypalConfigured: boolean; mandate: Mandate | null; spent: number;
+  walletSaved: boolean; walletKind: "paypal" | "card" | null; paypalConfigured: boolean; mandate: Mandate | null; spent: number;
   purchases: Purchase[]; approvals: Approval[]; feed: Feed[];
 };
 
@@ -60,6 +60,12 @@ export default function Home() {
     const j = await (await fetch("/api/paypal/vault/setup", { method: "POST" })).json();
     if (j.approveUrl) window.location.href = j.approveUrl;
   };
+  const saveTestCard = async () => {
+    setBusy(true);
+    await fetch("/api/paypal/vault/test-card", { method: "POST" });
+    await refresh();
+    setBusy(false);
+  };
 
   const purchase = (id: string) => s?.purchases.find((p) => p.id === id);
   const approval = (id: string) => s?.approvals.find((a) => a.id === id);
@@ -77,11 +83,18 @@ export default function Home() {
           </div>
         </div>
         {s && (s.walletSaved ? (
-          <span className="rounded-full bg-[var(--ok-bg)] px-3 py-1 text-xs text-[var(--ok)]">PayPal connected</span>
+          <span className="rounded-full bg-[var(--ok-bg)] px-3 py-1 text-xs text-[var(--ok)]">
+            {s.walletKind === "card" ? "Sandbox test card saved in PayPal Vault" : "PayPal connected"}
+          </span>
         ) : (
-          <button onClick={connect} disabled={!s.paypalConfigured} className="rounded-full bg-[#0070e0] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-            Connect PayPal
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={saveTestCard} disabled={!s.paypalConfigured || busy} title="Saves PayPal's sandbox test Visa to the Vault, no login needed" className="rounded-full border border-[var(--line)] px-3 py-1.5 text-sm disabled:opacity-50">
+              Use test card
+            </button>
+            <button onClick={connect} disabled={!s.paypalConfigured} className="rounded-full bg-[#0070e0] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+              Connect PayPal
+            </button>
+          </div>
         ))}
       </header>
 

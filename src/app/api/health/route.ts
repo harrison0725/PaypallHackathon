@@ -8,5 +8,6 @@ export async function GET() {
     paypalConfigured: paypalConfigured(),
     anthropicConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
     walletSaved: Boolean(s.vaultId),
+    walletKind: s.walletKind ?? (s.vaultId ? "paypal" : null),
   });
 }

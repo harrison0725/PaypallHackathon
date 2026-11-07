@@ -38,6 +38,8 @@ export type FeedItem =
 
 export type State = {
   vaultId?: string;
+  /** "paypal" = buyer's PayPal wallet; "card" = sandbox test card saved to the Vault. */
+  walletKind?: "paypal" | "card";
   pendingSetupToken?: string;
   mandate?: Mandate;
   purchases: Purchase[];

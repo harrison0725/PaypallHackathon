@@ -10,6 +10,7 @@ export async function GET(req: Request) {
   if (!setupToken) return Response.redirect(`${origin}/?vault=missing`);
   const { vaultId } = await createPaymentToken(setupToken);
   s.vaultId = vaultId;
+  s.walletKind = "paypal";
   delete s.pendingSetupToken;
   await save(s);
   return Response.redirect(`${origin}/?vault=saved`);
