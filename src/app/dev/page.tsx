@@ -26,6 +26,7 @@ export default function Dev() {
           const j = await post("/api/paypal/vault/setup");
           if (j.approveUrl) window.location.href = j.approveUrl;
         }}>1. Save sandbox PayPal wallet</button>
+        <button className="rounded bg-blue-600 px-3 py-2 text-white" onClick={() => post("/api/paypal/vault/test-card")}>1b. Save sandbox test card instead</button>
         <button className="rounded bg-blue-600 px-3 py-2 text-white" onClick={() => post("/api/paypal/test-order")}>2. Charge $8.99 test order</button>
       </div>
       <ul className="space-y-2">

@@ -78,6 +78,18 @@ export async function createPaymentToken(setupTokenId: string) {
   return { vaultId: r.id, customerId: r.customer?.id };
 }
 
+/** Save a sandbox test card straight to the Vault. No buyer redirect, so judges can try the demo without a sandbox login. */
+export async function vaultTestCard() {
+  const st = await call<{ id: string; status: string }>("POST", "/v3/vault/setup-tokens", {
+    payment_source: {
+      card: { number: "4111111111111111", expiry: "2030-12", name: "Mandate Demo", security_code: "123" },
+    },
+  }, crypto.randomUUID());
+  return createPaymentToken(st.id);
+}
+
+export type WalletKind = "paypal" | "card";
+
 export type LineItem = { name: string; unitAmount: number; quantity: number; sku?: string };
 
 type Order = {
@@ -89,6 +101,7 @@ type Order = {
 /** Charge a vaulted PayPal wallet without the buyer present (merchant-initiated). */
 export async function payWithVault(opts: {
   vaultId: string;
+  kind?: WalletKind;
   items: LineItem[];
   currency?: string;
   description?: string;
@@ -109,7 +122,9 @@ export async function payWithVault(opts: {
         unit_amount: money(i.unitAmount),
       })),
     }],
-    payment_source: { paypal: { vault_id: opts.vaultId } },
+    payment_source: opts.kind === "card"
+      ? { card: { vault_id: opts.vaultId, stored_credential: { payment_initiator: "MERCHANT", payment_type: "UNSCHEDULED", usage: "SUBSEQUENT" } } }
+      : { paypal: { vault_id: opts.vaultId } },
   }, opts.idempotencyKey);
   // Vaulted orders usually complete on creation; capture if they don't.
   if (order.status !== "COMPLETED") {

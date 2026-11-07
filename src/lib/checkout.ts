@@ -7,6 +7,7 @@ export async function executePurchase(s: State, cart: CartItem[], explanation: s
   if (!s.vaultId) throw new Error("No PayPal wallet saved yet. Connect PayPal first.");
   const r = await payWithVault({
     vaultId: s.vaultId,
+    kind: s.walletKind,
     items: cart.map((i) => ({ name: `${i.name} (${i.merchant})`, unitAmount: i.unitAmount, quantity: i.quantity })),
     description: `Mandate: ${explanation}`,
     idempotencyKey: crypto.randomUUID(),
