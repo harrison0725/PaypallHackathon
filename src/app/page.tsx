@@ -1,103 +1,199 @@
-import Image from "next/image";
+"use client";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+type Item = { name: string; merchant?: string; unitAmount: number; quantity: number };
+type Purchase = {
+  id: string; createdAt: string; items: Item[]; total: number; orderId: string;
+  explanation: string; rule?: string; refunded?: { amount: number; reason?: string };
+};
+type Approval = { id: string; cart: Item[]; total: number; explanation: string; reasons: string[]; status: string };
+type Mandate = {
+  name: string; budget: number; period: string; approvalThreshold: number; maxItemPrice?: number;
+  allowedCategories: string[]; allowedMerchants: string[]; blockedKeywords: string[];
+};
+type Feed =
+  | { kind: "user" | "agent"; text: string; at: string }
+  | { kind: "purchase" | "refund"; purchaseId: string; at: string }
+  | { kind: "approval"; approvalId: string; at: string }
+  | { kind: "denied"; reasons: string[]; total: number; at: string }
+  | { kind: "mandate"; at: string };
+type State = {
+  walletSaved: boolean; paypalConfigured: boolean; mandate: Mandate | null; spent: number;
+  purchases: Purchase[]; approvals: Approval[]; feed: Feed[];
+};
+
+const usd = (n: number) => `$${n.toFixed(2)}`;
+const SUGGESTIONS = [
+  "Up to $80 a month on school and office supplies, only from Kiddo Supply and Northside Office. Ask me for anything over $30.",
+  "We're out of printer paper and dry-erase markers.",
+  "Get a new backpack and 6 composition notebooks.",
+  "Buy me a video game.",
+  "Return the markers, wrong color.",
+];
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [s, setS] = useState<State | null>(null);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const end = useRef<HTMLDivElement>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const refresh = useCallback(async () => setS(await (await fetch("/api/state")).json()), []);
+  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [s?.feed.length]);
+
+  const send = async (text: string) => {
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    setInput("");
+    setS((p) => p && { ...p, feed: [...p.feed, { kind: "user", text, at: new Date().toISOString() }] });
+    await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text }) });
+    await refresh();
+    setBusy(false);
+  };
+  const decide = async (id: string, decision: "approve" | "decline") => {
+    setBusy(true);
+    await fetch(`/api/approvals/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }) });
+    await refresh();
+    setBusy(false);
+  };
+  const connect = async () => {
+    const j = await (await fetch("/api/paypal/vault/setup", { method: "POST" })).json();
+    if (j.approveUrl) window.location.href = j.approveUrl;
+  };
+
+  const purchase = (id: string) => s?.purchases.find((p) => p.id === id);
+  const approval = (id: string) => s?.approvals.find((a) => a.id === id);
+  const m = s?.mandate;
+  const pct = m ? Math.min(100, (s!.spent / m.budget) * 100) : 0;
+
+  return (
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--fg)]">
+      <header className="border-b border-[var(--line)] px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--accent)] font-bold text-white">M</span>
+          <div>
+            <div className="font-semibold leading-tight">Mandate</div>
+            <div className="text-xs text-[var(--muted)]">Your agent shops. Your rules decide.</div>
+          </div>
         </div>
+        {s && (s.walletSaved ? (
+          <span className="rounded-full bg-[var(--ok-bg)] px-3 py-1 text-xs text-[var(--ok)]">PayPal connected</span>
+        ) : (
+          <button onClick={connect} disabled={!s.paypalConfigured} className="rounded-full bg-[#0070e0] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+            Connect PayPal
+          </button>
+        ))}
+      </header>
+
+      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 md:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="flex min-w-0 h-[calc(100vh-110px)] flex-col rounded-2xl border border-[var(--line)] bg-[var(--card)]">
+          <div className="flex-1 space-y-3 overflow-y-auto p-4">
+            {s?.feed.length === 0 && (
+              <div className="text-sm text-[var(--muted)]">
+                Start by telling me your rules in plain English, then ask me to buy something.
+              </div>
+            )}
+            {s?.feed.map((f, i) => {
+              if (f.kind === "user") return <div key={i} className="ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-[var(--accent)] px-3 py-2 text-white">{f.text}</div>;
+              if (f.kind === "agent") return <div key={i} className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-sm bg-[var(--bubble)] px-3 py-2">{f.text}</div>;
+              if (f.kind === "mandate" && m) return <div key={i} className="text-xs text-[var(--muted)]">Mandate saved: {m.name}</div>;
+              if (f.kind === "denied") return (
+                <div key={i} className="max-w-[85%] rounded-xl border border-[var(--bad)] bg-[var(--bad-bg)] p-3 text-sm">
+                  <div className="font-medium text-[var(--bad)]">Blocked by your mandate · {usd(f.total)}</div>
+                  <ul className="mt-1 list-disc pl-5">{f.reasons.map((r, j) => <li key={j}>{r}</li>)}</ul>
+                </div>
+              );
+              if (f.kind === "approval") {
+                const a = approval(f.approvalId);
+                if (!a) return null;
+                return (
+                  <div key={i} className="max-w-[85%] rounded-xl border border-[var(--warn)] bg-[var(--warn-bg)] p-3 text-sm">
+                    <div className="font-medium">Needs your OK · {usd(a.total)}</div>
+                    <ul className="mt-1">{a.cart.map((c, j) => <li key={j}>{c.quantity} × {c.name} <span className="text-[var(--muted)]">({c.merchant})</span> · {usd(c.unitAmount * c.quantity)}</li>)}</ul>
+                    <p className="mt-1 italic">{a.explanation}</p>
+                    {a.status === "pending" ? (
+                      <div className="mt-2 flex gap-2">
+                        <button disabled={busy} onClick={() => decide(a.id, "approve")} className="rounded-lg bg-[#0070e0] px-3 py-1.5 text-white">Approve and pay with PayPal</button>
+                        <button disabled={busy} onClick={() => decide(a.id, "decline")} className="rounded-lg border border-[var(--line)] px-3 py-1.5">Decline</button>
+                      </div>
+                    ) : <div className="mt-2 text-xs text-[var(--muted)]">{a.status}</div>}
+                  </div>
+                );
+              }
+              if (f.kind !== "purchase" && f.kind !== "refund") return null;
+              const p = purchase(f.purchaseId);
+              if (!p) return null;
+              if (f.kind === "refund") return (
+                <div key={i} className="max-w-[85%] rounded-xl border border-[var(--line)] p-3 text-sm">
+                  Refunded {usd(p.refunded?.amount ?? p.total)} to your PayPal · {p.refunded?.reason}
+                </div>
+              );
+              return (
+                <div key={i} className="max-w-[85%] rounded-xl border border-[var(--ok)] bg-[var(--ok-bg)] p-3 text-sm">
+                  <div className="font-medium text-[var(--ok)]">Paid with PayPal · {usd(p.total)}</div>
+                  <ul className="mt-1">{p.items.map((c, j) => <li key={j}>{c.quantity} × {c.name} <span className="text-[var(--muted)]">({c.merchant})</span></li>)}</ul>
+                  <p className="mt-1"><span className="font-medium">Why:</span> {p.explanation}</p>
+                  {p.rule && <p className="text-xs text-[var(--muted)]">Allowed because: {p.rule}</p>}
+                  <p className="text-xs text-[var(--muted)]">PayPal order {p.orderId}</p>
+                </div>
+              );
+            })}
+            {busy && <div className="text-sm text-[var(--muted)]">Mandate is working…</div>}
+            <div ref={end} />
+          </div>
+          <div className="border-t border-[var(--line)] p-3">
+            <div className="mb-2 flex gap-2 overflow-x-auto">
+              {SUGGESTIONS.map((t) => (
+                <button key={t} onClick={() => send(t)} disabled={busy} className="shrink-0 rounded-full border border-[var(--line)] px-3 py-1 text-xs text-[var(--muted)] hover:text-[var(--fg)]">
+                  {t.length > 48 ? t.slice(0, 46) + "…" : t}
+                </button>
+              ))}
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="flex gap-2">
+              <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Set your rules, or ask me to buy something"
+                className="flex-1 rounded-xl border border-[var(--line)] bg-transparent px-3 py-2 outline-none focus:border-[var(--accent)]" />
+              <button disabled={busy} className="rounded-xl bg-[var(--accent)] px-4 py-2 font-medium text-white disabled:opacity-50">Send</button>
+            </form>
+          </div>
+        </section>
+
+        <aside className="min-w-0 space-y-4">
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
+            <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Your mandate</div>
+            {m ? (
+              <>
+                <div className="mt-1 text-lg font-semibold">{m.name}</div>
+                <div className="mt-2 h-2 rounded-full bg-[var(--bubble)]"><div className="h-2 rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} /></div>
+                <div className="mt-1 text-sm">{usd(s!.spent)} of {usd(m.budget)} this {m.period}</div>
+                <dl className="mt-3 space-y-1 text-sm">
+                  <div><dt className="inline text-[var(--muted)]">Ask me above: </dt><dd className="inline">{usd(m.approvalThreshold)}</dd></div>
+                  {m.maxItemPrice !== undefined && <div><dt className="inline text-[var(--muted)]">Max per item: </dt><dd className="inline">{usd(m.maxItemPrice)}</dd></div>}
+                  <div><dt className="inline text-[var(--muted)]">Stores: </dt><dd className="inline">{m.allowedMerchants.join(", ") || "any"}</dd></div>
+                  <div><dt className="inline text-[var(--muted)]">Categories: </dt><dd className="inline">{m.allowedCategories.join(", ") || "any"}</dd></div>
+                  {m.blockedKeywords.length > 0 && <div><dt className="inline text-[var(--muted)]">Never buy: </dt><dd className="inline">{m.blockedKeywords.join(", ")}</dd></div>}
+                </dl>
+              </>
+            ) : <p className="mt-1 text-sm text-[var(--muted)]">No rules yet. Describe them in the chat.</p>}
+          </div>
+
+          <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
+            <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Activity</div>
+            {s?.purchases.length ? (
+              <ul className="mt-2 space-y-2 text-sm">
+                {s.purchases.map((p) => (
+                  <li key={p.id} className="flex justify-between gap-2">
+                    <span className={p.refunded ? "line-through text-[var(--muted)]" : ""}>{p.items.map((i) => i.name).join(", ")}</span>
+                    <span className="shrink-0">{p.refunded ? "refunded" : usd(p.total)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="mt-1 text-sm text-[var(--muted)]">No purchases yet.</p>}
+          </div>
+          {s && !s.paypalConfigured && (
+            <p className="text-xs text-[var(--bad)]">PayPal sandbox keys are not set on the server.</p>
+          )}
+        </aside>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }

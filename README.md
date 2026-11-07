@@ -8,7 +8,7 @@ Built for the PayPal AI Hackathon (Nov 2026).
 
 ## Status
 
-Work in progress. Day 1: PayPal money flow (save wallet with Vault, charge it with Orders v2, refund) and the policy engine.
+Work in progress. Done: PayPal money flow (save wallet with Vault, charge it with Orders v2, refund), the policy engine, the Claude agent loop with tools, and the chat UI with approval cards and receipts. Product search uses a seeded catalog of fictional stores for now.
 
 ## How it uses PayPal
 
@@ -27,7 +27,7 @@ Claude (Anthropic API) runs the agent: it parses the mandate into structured rul
 1. Create a sandbox app at [developer.paypal.com](https://developer.paypal.com/dashboard/applications/sandbox) and turn on **Vault** (save payment methods) in its features.
 2. `cp .env.example .env.local` and fill in the values.
 3. `npm install && npm run dev`
-4. Open http://localhost:3000/dev, save a wallet with a sandbox **personal** account, charge a test order, then refund it.
+4. Open http://localhost:3000, click **Connect PayPal** and log in with a sandbox **personal** account, then chat with the agent. `/dev` has a bare test page for the PayPal flow without AI.
 
 ## Deploy
 
